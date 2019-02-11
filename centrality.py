@@ -12,14 +12,20 @@ def closeness(g):
 	# Get list of vertices. We'll generate all the shortest paths at
 	# once using this list.
 	# YOUR CODE HERE
+	v = g.vertices.map(lambda x: x[0]).collect()
 
 	# first get all the path lengths.
+	pathLengths = g.shortestPaths(landmarks=v)
 
 	# Break up the map and group by ID for summing
-
 	# Sum by ID
-
+	inverses = pathLengths.map(lambda x: (x[0], float(1.0/float(sum(x[1].values())))))
+	
 	# Get the inverses and generate desired dataframe.
+
+	df = sqlContext.createDataFrame(inverses, ['vertice','closeness'])
+
+	return df
 
 
 print("Reading in graph for problem 2.")
@@ -41,3 +47,4 @@ g = GraphFrame(v,e)
 
 print("Calculating closeness.")
 closeness(g).sort('closeness',ascending=False).show()
+print (closeness(g))
