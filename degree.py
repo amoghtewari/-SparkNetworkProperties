@@ -4,56 +4,96 @@ import networkx as nx
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 from pyspark.sql.types import *
+from pyspark.sql import Row
 from graphframes import *
+import numpy as np
+import powerlaw
+
 
 sc=SparkContext("local", "degree.py")
 sqlContext = SQLContext(sc)
 
 ''' return the simple closure of the graph as a graphframe.'''
 def simple(g):
-	# Extract edges and make a data frame of "flipped" edges
-	# YOUR CODE HERE
-
-	# Combine old and new edges. Distinctify to eliminate multi-edges
-	# Filter to eliminate self-loops.
-	# A multigraph with loops will be closured to a simple graph
-	# If we try to undirect an undirected graph, no harm done
-	# YOUR CODE HERE
-
-
-''' Return a data frame of the degree distribution of each edge in
-	the provided graphframe '''
-def degreedist(g):
-	# Generate a DF with degree,count
+    # Extract edges and make a data frame of "flipped" edges
     # YOUR CODE HERE
+    eschema = StructType([StructField("src", IntegerType()), StructField("dst", IntegerType())])
+    f = g.edges.rdd.map(lambda x: (x[1], x[0]))
+
+    # Combine old and new edges. Distinctify to eliminate multi-edges
+    # Filter to eliminate self-loops.
+    # A multigraph with loops will be closured to a simple graph
+    # If we try to undirect an undirected graph, no harm done
+    # YOUR CODE HERE
+    unique = f.union(g.edges.rdd).distinct()
+    df = sqlContext.createDataFrame(unique, eschema)
+    sg = GraphFrame(g.vertices, df)
+    return sg
+
+
+
+''' Return a data frame of the degree distribution of each edge in the provided graphframe '''
+def degreedist(g):
+    # Generate a DF with degree,count
+    # YOUR CODE HERE
+    return g.degrees.groupBy(['degree']).count()
+
+''' Return a data frame of the degree distribution of each edge in the provided graphframe '''
+def degreedistP(g):
+    # Generate a DF with degree,count
+    # YOUR CODE HERE
+    return g.inDegrees.groupBy(['inDegree']).count()
+
+
 
 
 ''' Read in an edgelist file with lines of the format id1<delim>id2
-	and return a corresponding graphframe. If "large" we assume
-	a header row and that delim = " ", otherwise no header and
-	delim = ","'''
+and return a corresponding graphframe. If "large" we assume
+a header row and that delim = " ", otherwise no header and
+delim = ","'''
+
 def readFile(filename, large, sqlContext=sqlContext):
-	lines = sc.textFile(filename)
+    lines = sc.textFile(filename)
 
-	if large:
-		delim=" "
-		# Strip off header row.
-		lines = lines.mapPartitionsWithIndex(lambda ind,it: iter(list(it)[1:]) if ind==0 else it)
-	else:
-		delim=","
+    if large:
+    	delim=" "
+	# Strip off header row.
+	lines = lines.mapPartitionsWithIndex(lambda ind,it: iter(list(it)[1:]) if ind==0 else it)
+    else:
+	delim=","
+    
+    # Extract pairs from input file and convert to data frame matching
+    # schema for graphframe edges.
+    # YOUR CODE HERE
 
-	# Extract pairs from input file and convert to data frame matching
-	# schema for graphframe edges.
-	# YOUR CODE HERE
+    eschema = StructType([StructField("src", IntegerType()),StructField("dst", IntegerType())])
 
-	# Extract all endpoints from input file (hence flatmap) and create
-	# data frame containing all those node names in schema matching
-	# graphframe vertices
-	# YOUR CODE HERE
+    edges = lines.map(lambda x: x.split(delim)).map(lambda x: (int(x[0]), int(x[1])))
+    edges_df = sqlContext.createDataFrame(edges.map (lambda x: Row(x[0], x[1])), eschema)
 
-	# Create graphframe g from the vertices and edges.
 
-	return g
+    # Extract all endpoints from input file (hence flatmap) and create
+    # data frame containing all those node names in schema matching
+    # graphframe vertices
+    # YOUR CODE HERE
+    vschema = StructType([StructField("id", IntegerType())])
+
+    vertices = lines.flatMap(lambda x: x.split(delim)).map(lambda x: int(x)).distinct()
+    vertices_df = sqlContext.createDataFrame(vertices.map (lambda x: Row(x)), vschema)
+    
+    # Create graphframe g from the vertices and edges.
+    g = GraphFrame(vertices_df, edges_df)
+
+    return g
+
+
+def powerLawTest(distrib):
+    x=distrib.collect()
+    fitted_pl = powerlaw.Fit(x[1])
+    return fitted_pl.alpha
+    
+            
+
 
 
 # main stuff
@@ -68,6 +108,7 @@ if len(sys.argv) > 1:
 
 	print("Processing input file " + filename)
 	g = readFile(filename, large)
+        print(type(g))
 
 	print("Original graph has " + str(g.edges.count()) + " directed edges and " + str(g.vertices.count()) + " vertices.")
 
@@ -78,6 +119,10 @@ if len(sys.argv) > 1:
 	distrib.show()
 	nodecount = g2.vertices.count()
 	print("Graph has " + str(nodecount) + " vertices.")
+        
+	distribP=degreedistP(g2)
+	alphaVal=powerLawTest(distribP)
+	print ("Power law test alpha value = " + str(alphaVal))
 
 	out = filename.split("/")[-1]
 	print("Writing distribution to file " + out + ".csv")
@@ -101,5 +146,10 @@ else:
 		e = sqlContext.createDataFrame(sc.parallelize(todo[gx].edges()), eschema)
 		g = simple(GraphFrame(v,e))
 		distrib = degreedist(g)
+
+		distribP=degreedistP(g)
+		alphaVal=powerLawTest(distribP)
+		print ("Power law test alpha value = " + str(alphaVal))
+
 		print("Writing distribution to file " + gx + ".csv")
 		distrib.toPandas().to_csv(gx + ".csv")
