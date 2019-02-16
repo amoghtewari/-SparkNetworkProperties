@@ -39,6 +39,8 @@ graph = sc.parallelize([('A','B'),('A','C'),('A','D'),
 	('H','C'),('H','F'),('H','I'),
 	('I','H'),('I','J'),
 	('J','I')])
+
+
 	
 e = sqlContext.createDataFrame(graph,['src','dst'])
 v = e.selectExpr('src as id').unionAll(e.selectExpr('dst as id')).distinct()
@@ -46,5 +48,5 @@ print("Generating GraphFrame.")
 g = GraphFrame(v,e)
 
 print("Calculating closeness.")
-closeness(g).sort('closeness',ascending=False).show()
-print (closeness(g))
+df = closeness(g).sort('closeness',ascending=False).show()
+df.toPandas().to_csv('centrality_out.csv')

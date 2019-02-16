@@ -5,9 +5,14 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 from pyspark.sql.types import *
 from pyspark.sql import Row
+from pyspark.sql import functions as F
 from graphframes import *
 import numpy as np
-import powerlaw
+import math
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+
 
 
 sc=SparkContext("local", "degree.py")
@@ -38,11 +43,6 @@ def degreedist(g):
     # YOUR CODE HERE
     return g.degrees.groupBy(['degree']).count()
 
-''' Return a data frame of the degree distribution of each edge in the provided graphframe '''
-def degreedistP(g):
-    # Generate a DF with degree,count
-    # YOUR CODE HERE
-    return g.inDegrees.groupBy(['inDegree']).count()
 
 
 
@@ -87,10 +87,28 @@ def readFile(filename, large, sqlContext=sqlContext):
     return g
 
 
+def Dplot(z):
+    
+    x=z.map(lambda x: math.log(x[0])).collect()
+    y=z.map(lambda x: math.log(x[1])).collect()
+
+    fig = plt.figure()
+    plt.plot(x,y, 'ro')
+    plt.xlabel("log(Degree)")
+    plt.ylabel("log(Count)")
+    fig.savefig('plot.png', bbox_inches='tight')
+    
+
 def powerLawTest(distrib):
-    x=distrib.collect()
-    fitted_pl = powerlaw.Fit(x[1])
-    return fitted_pl.alpha
+    
+    x=distrib.map(lambda x: x[0]).collect()
+    #x=distrib.filter(distrib[0]>thresh)
+    #maxVal=max(x)
+    #sumVal=distrib.agg(F.sum('count')).collect()[0][0]
+    #y=distrib.map(lambda x: x[1]).collect()
+    
+    y = np.polyfit(x.map(lambda x: x[0]).collect(), x.map(lambda x: math.log(x[1])).collect(), deg=1)
+    return -1*y[0]
     
             
 
@@ -120,9 +138,9 @@ if len(sys.argv) > 1:
 	nodecount = g2.vertices.count()
 	print("Graph has " + str(nodecount) + " vertices.")
         
-	distribP=degreedistP(g2)
-	alphaVal=powerLawTest(distribP)
-	print ("Power law test alpha value = " + str(alphaVal))
+	#alphaVal=powerLawTest(distrib, thresh)
+	#print ("Power Law test Alpha Value = "+str(alphaVal))
+	Dplot(distrib)
 
 	out = filename.split("/")[-1]
 	print("Writing distribution to file " + out + ".csv")
@@ -147,9 +165,9 @@ else:
 		g = simple(GraphFrame(v,e))
 		distrib = degreedist(g)
 
-		distribP=degreedistP(g)
-		alphaVal=powerLawTest(distribP)
-		print ("Power law test alpha value = " + str(alphaVal))
-
+		
+		#alphaVal=powerLawTest(distrib)
+		#print ("Power Law test Alpha Value = "+str(alphaVal))
+		Dplot(distrib)
 		print("Writing distribution to file " + gx + ".csv")
 		distrib.toPandas().to_csv(gx + ".csv")

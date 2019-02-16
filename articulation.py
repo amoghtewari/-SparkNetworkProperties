@@ -99,8 +99,9 @@ init = time.time()
 df = articulations(g, False)
 print("Execution time: %s seconds" % (time.time() - init))
 print("Articulation points:")
-df.filter('articulation = 1').show(truncate=False)
-df.toPandas().to_csv('articulations_out.csv')
+df1 = df.filter('articulation = 1')
+df1.show(truncate=False)
+df1.toPandas().to_csv('articulations_out.csv')
 print("---------------------------")
 
 #Runtime for below is more than 2 hours
