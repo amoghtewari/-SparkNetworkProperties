@@ -48,5 +48,6 @@ print("Generating GraphFrame.")
 g = GraphFrame(v,e)
 
 print("Calculating closeness.")
-df = closeness(g).sort('closeness',ascending=False).show()
+df = closeness(g).sort('closeness',ascending=False)
+df.show()
 df.toPandas().to_csv('centrality_out.csv')

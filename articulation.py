@@ -59,7 +59,7 @@ def articulations(g, usegraphframe=False):
 		
 		for vertex in vertexList:
 			
-			newnxg=nxg
+			newnxg=deepcopy(nxg)
 			newnxg.remove_node(vertex)
 			newNumConnected=nx.number_connected_components(newnxg)
 			
